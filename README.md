@@ -1,3 +1,5 @@
 # A2D2E: Accelerated Aggregated D-Optimal Designs for Estimating Main Effects in Black-Box Models
 ## Abstract
 Recent advances in supervised learning have driven growing interest in explaining black-box models, particularly by estimating the effects of input variables on model predictions. However, existing approaches often face key limitations, including poor scalability, sensitivity to out-of-distribution sampling, and instability under correlated features. To address these issues, we propose A2D2E, an \textbf{E}stimator based on \textbf{A}ccelerated \textbf{A}ggregated \textbf{D}-Optimal \textbf{D}esigns. Our method leverages principled experimental design to improve efficiency and robustness in main effect estimation. We establish theoretical guarantees, including convergence and variance reduction, and validate A2D2E through extensive simulations. We further provide the potential of the proposed method with a case study on real data and applications in language models.
+
+## Implementation
