@@ -1,0 +1,594 @@
+---
+title: "A2D2E"
+output: html_document
+date: "2025-05-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## A2D2E main function
+```{r} 
+library(ALEPlot)
+A2D2Plot <- function(D, md, predicted_model, target_variable, K, sp) {
+  # Extract the target variable column
+  x_j <- D[, target_variable]
+  # Define breaks
+  breaks <- quantile(x_j, probs = seq(0, 1, length.out = K + 1)) # use quantile to make bins
+  breaks[1] <- min(x_j) - 1e-8  # slightly below min
+  breaks[K + 1] <- max(x_j)     # exactly at max
+  num_seg = 0 # collect the number at each bin
+  beta <- NULL  # Collect estimated slopes (betas)
+
+  
+  for (k in seq_len(K)) {# for each bin
+    # Select points in the k-th segment
+    segment_indices <- which(x_j >= breaks[k] & x_j < breaks[k + 1])
+    n_k <- length(segment_indices)
+    num_seg = c(num_seg, n_k)
+    
+    beta_k <- c()
+    for (i in seq_len(n_k)) {# for each location in the bin
+      # Center point
+      x_k_i <- D[segment_indices[i], ]
+      
+        beta_local <- optimal_edge_and_beta_nd(
+        model_function = predicted_model,
+        md = md,
+        target = target_variable,
+        center = x_k_i,
+        min_window = 1e-12,
+        sp = sp
+      )
+      beta_k <- c(beta_k, beta_local) 
+    }
+    
+    # Average the local slopes
+    beta <- c(beta, mean(beta_k))
+  }
+  
+  # Compute accumulated effect
+  delta <- breaks[-1] - breaks[-length(breaks)]
+  loc <- c(0)
+  for (i in 2:(K+1)) {
+    loc <- c(loc, loc[i-1] + delta[i-1] * beta[i-1])
+  }
+
+  norm_const = as.numeric(num_seg%*%loc/sum(num_seg))
+  return(list(
+    x.values = as.numeric(breaks),
+    f.values = as.numeric(loc-norm_const))) # no center
+}
+```
+ 
+```{r}
+# estimate the beta
+cube_beta_target_from_model <- function(center, edge, model_function, md, target) {
+  k <- length(center) # dimension of x
+  n <- 2^k # total number of vertices
+  levels <- lapply(center, function(cj) c(cj - edge, cj + edge))
+  X <- expand.grid(levels)
+  colnames(X) <- names(center)  # ensure correct column names
+
+  # Evaluate model on each row as named dataframe
+  y <- apply(X, 1, function(row) model_function(md, as.data.frame(t(row))))
+
+  z_target <- X[[target]] - center[[target]]
+  beta_target <- sum(z_target * y) / (n * edge^2)
+  return(beta_target)
+}
+
+optimal_edge_and_beta_nd <- function(model_function, md, target, center, 
+                                     min_window, threshold = 0.05, sp) {
+  k <- length(center)
+  n <- 2^k
+  spacing <- 0.025
+
+  return(cube_beta_target_from_model(center, sp, model_function, md, target))
+
+  while (spacing > 1e-12) {
+    levels <- replicate(k, c(-spacing, spacing), simplify = FALSE)
+    cube_points <- expand.grid(levels)
+    colnames(cube_points) <- names(center)
+    y_vals <- apply(cube_points, 1, function(offset) {
+      x <- center + offset
+      x_df <- as.data.frame(as.list(as.numeric(x)))
+      names(x_df) <- names(center)
+      model_function(md, x_df)
+      })
+
+    y_center <- model_function(md, center)
+    curvature_effect <- y_center - mean(y_vals)
+    if (abs(curvature_effect)/y_center < threshold) {
+      return(cube_beta_target_from_model(center, spacing, model_function, md, target))
+    }
+
+    spacing <- spacing / 10
+  }
+
+  # Fallback
+  spacing <- 1e-12
+  return(cube_beta_target_from_model(center, spacing, model_function, md, target))
+}
+```
+
+# function for repeat experiment in Section 3
+```{r}
+library(MASS)
+library(nnet)
+library(DiceKriging)
+library(e1071)
+library(randomForest)
+library(cubature)
+library(gbm3)
+
+main_effect_exp = function(f, md, dep, dim, v, n_train = 200, n_rep = 50, grid_len = 40, sp){
+    result_matrix = NULL
+for (rep in 1:n_rep) {
+  cat("Running bootstrap iteration:", rep, "\n")
+  if(dep=="indep")
+    X <- matrix(runif(n_train * dim), ncol = dim)
+  if(dep == "lowdep"){
+    x = runif(n_train)
+    X = NULL
+    for (j in 1:dim) {
+      vi = x+rnorm(n_train,0,0.1)
+      X = cbind(X,vi)
+    }
+  }
+  if(dep == "highdep"){
+    x = runif(n_train)
+    X = NULL
+    for (j in 1:dim) {
+      vi = x+rnorm(n_train,0,0.01)
+      X = cbind(X,vi)
+    }
+  }
+  X <- apply(X, 2, function(col) {(col - min(col)) / (max(col) - min(col))})
+  y <- apply(X, 1, f)
+
+    signal_var <- var(y)
+  noise_var <- 0.1 * signal_var
+  noise_sd  <- sqrt(noise_var)
+  noise <- rnorm(length(y), mean = 0, sd = noise_sd)
+  y_noisy <- y + noise
+
+  if(md == "GP"){
+    model <- km(formula = ~1, design = data.frame(X), response = y, covtype = "matern5_2", nugget.estim = TRUE     )
+    yhat <- function(X.model, newdata) {
+      pred <- predict(X.model, newdata = data.frame(newdata), type = "UK")
+      return(pred$mean)
+    }
+  }
+  
+  if(md == "NN"){
+    model <- nnet(x = X, y = y, size = 5, linout = TRUE, maxit = 500, trace = FALSE)
+    yhat <- function(X.model, newdata) {
+      return(predict(X.model, newdata = data.frame(newdata)))
+    }
+  }
+library(nnet)
+
+if (md == "LLM") {
+  # Step 1: Fit LLM surrogate
+  model_llm <- fit_chatgpt(X, y, model = "gpt-4o-mini", temperature = 0)
+  
+  # Step 2: Generate synthetic training data from LLM
+  d <- ncol(X)  # input dimension
+  set.seed(123)
+  X_synth <- matrix(runif(100 * d), ncol = d)         # 50 synthetic samples
+  y_synth <- predict(model_llm, data.frame(X_synth)) # LLM pseudo-labels
+  
+  # Step 3: Combine with original training data
+  X_train <- rbind(X, X_synth)
+  y_train <- c(y, y_synth)
+  
+  # Step 4: Train NN using nnet (one hidden layer)
+  # size = number of hidden units, linout = TRUE for regression
+  model <- nnet(
+    x = X_train, 
+    y = y_train,
+    size = 10,       # number of hidden units
+    linout = TRUE,   # regression mode
+    maxit = 500,     # iterations
+    trace = FALSE
+  )
+  
+  # Step 5: Define prediction wrapper
+    yhat <- function(X.model, newdata) {
+      return(predict(X.model, newdata = data.frame(newdata)))
+    }
+}
+
+  
+  for (target_var in 1:dim) {
+    pd_res   <- PDPlot(data.frame(X), model, yhat, J = target_var, K = (grid_len+1))
+    ale_res  <- ALEPlot(data.frame(X), model, yhat, J = target_var, K = grid_len)
+    a2d2e_res <- A2D2EPlot(data.frame(X), model, yhat, target_var, grid_len, sp)
+    
+    method_list <- list("1" = pd_res, "2" = ale_res, "3" = a2d2e_res)
+    for (method_id in names(method_list)) {
+      res <- method_list[[method_id]]
+      x_vals <- as.numeric(res$x.values)
+      f_vals <- as.numeric(res$f.values)
+      row <- c(x_vals, f_vals, as.numeric(method_id), target_var, rep)
+      result_matrix <- rbind(result_matrix, row)
+    }
+  }
+}
+  # end the experiment
+  # compute the ORMSE
+  mse_PD = NULL
+  mse_ALE = NULL
+  mse_A2D2E = NULL
+
+  for (method in 1:3) {
+    ormse=NULL
+    for (rep in 1:n_rep) {
+      ormse_dim = 0
+    for (target in 1:dim) {
+      idx_method = result_matrix[, (grid_len*2+3)] == method
+      idx_tar = result_matrix[, (grid_len*2+4)] == target
+      subset_mat <- result_matrix[idx_method & idx_tar, ]
+      x_vals <- subset_mat[, 1:(grid_len+1)]
+      y_vals <- subset_mat[, (grid_len+2):(grid_len*2+2)]
+      m=0
+      for (i in 1:ncol(v)) {
+      idx = which(x_vals[rep,]>=v[1,i])[1]
+      m = m + (v[(target+1),i]-y_vals[rep,idx])^2
+      }
+      ormse_dim = ormse_dim+sqrt(m/ncol(v)) 
+    }
+      ormse = c(ormse, ormse_dim/dim)
+    }
+    if(method==1)
+      mse_PD = ormse
+    if(method==2)
+      mse_ALE = ormse
+    if(method==3)
+      mse_A2D2E = ormse
+  }
+return(list(result_mat = result_matrix, ORMSE_PD=mse_PD,ORMSE_ALE=mse_ALE,ORMSE_A2D2E=mse_A2D2E))
+} 
+```
+
+
+# plot the results
+```{r}
+plot_main_effect <- function(mat, truth_mat, x_loc, fix_ylim = TRUE,
+                             per_row_in = 3.2,  # height per row (inches)
+                             open_new_device = TRUE,
+                             title_cex = 1.35) {
+
+  stopifnot(is.matrix(mat))
+  p <- ncol(mat)
+  method_col <- p - 2
+  var_col    <- p - 1
+
+  # infer grid length
+  x_count <- (p - 3) / 2
+  if (x_count != round(x_count) || x_count < 1) stop("Cannot infer x_count.")
+  x_count <- as.integer(x_count)
+
+  # method names
+  method_names <- c("1" = "PD", "2" = "ALE", "3" = "A2D2E")
+
+  # keep ALE & A2D2E only
+  all_methods <- sort(unique(mat[, method_col]))
+  keep <- method_names[as.character(all_methods)] != "PD"
+  methods <- all_methods[keep]
+
+  variables <- sort(unique(mat[, var_col]))
+  n_row <- length(variables)
+  n_col <- length(methods)
+
+  # ---- open a taller device that actually works in RStudio ----
+  if (isTRUE(open_new_device)) {
+    sz <- try(grDevices::dev.size("in"), silent = TRUE)
+    if (inherits(sz, "try-error") || any(!is.finite(sz))) sz <- c(7, 5)
+    new_h <- max(per_row_in * n_row, sz[2])
+    new_w <- sz[1]
+    sys <- Sys.info()[["sysname"]]
+    if (identical(sys, "Darwin"))       grDevices::quartz(width = new_w, height = new_h)
+    else if (identical(sys, "Windows")) grDevices::windows(width = new_w, height = new_h)
+    else                                grDevices::x11(width = new_w, height = new_h)
+  }
+
+  # global y-limits
+  if (fix_ylim) {
+    y_all <- as.numeric(mat[, (x_count + 1):(2 * x_count)])
+    ylim_global <- range(y_all, na.rm = TRUE)
+    if (!missing(truth_mat)) ylim_global <- range(ylim_global, truth_mat, na.rm = TRUE)
+  }
+
+  oldpar <- par(no.readonly = TRUE); on.exit(par(oldpar), add = TRUE)
+  par(
+    mfrow = c(n_row, n_col),
+    mar = c(2.2, 2.2, 2.8, 1.2),   # smaller top margin -> more plotting area
+    oma = c(5.5, 7.0, 1.0, 1.0),
+    cex.axis = 1.25
+  )
+
+  for (ri in seq_along(variables)) {
+    v <- variables[ri]
+    for (ci in seq_along(methods)) {
+      m <- methods[ci]
+      sub <- mat[mat[, method_col] == m & mat[, var_col] == v, , drop = FALSE]
+      if (nrow(sub) == 0) { plot.new(); next }
+
+      x_all <- as.numeric(sub[1, 1:x_count])
+
+      # y-limits
+      ylim_use <- if (fix_ylim) {
+        ylim_global
+      } else {
+        y_min <- +Inf; y_max <- -Inf
+        for (i in 1:nrow(sub)) {
+          yi <- as.numeric(sub[i, (x_count+1):(2*x_count)])
+          y_min <- min(y_min, yi, na.rm = TRUE)
+          y_max <- max(y_max, yi, na.rm = TRUE)
+        }
+        if (!missing(truth_mat)) {
+          y_truth <- as.numeric(truth_mat[v + 1, ])
+          y_min <- min(y_min, y_truth, na.rm = TRUE)
+          y_max <- max(y_max, y_truth, na.rm = TRUE)
+        }
+        c(y_min, y_max)
+      }
+
+      show_xticks <- (ri == n_row)
+      show_yticks <- (ci == 1)
+
+      plot(x_all,
+           as.numeric(sub[1, (x_count+1):(2*x_count)]),
+           type = "l", col = "black", lwd = 2,
+           xaxt = "n", yaxt = "n",
+           xlab = "", ylab = "",
+           xlim = range(x_all, na.rm = TRUE),
+           ylim = ylim_use)
+
+      axis(1, labels = show_xticks)
+      axis(2, labels = show_yticks)
+      abline(h = 0, col = "grey70")
+
+      if (nrow(sub) > 1) {
+        for (i in 2:nrow(sub)) {
+          lines(x_all, as.numeric(sub[i, (x_count+1):(2*x_count)]), col = "black", lwd = 1)
+        }
+      }
+      if (!missing(truth_mat) && !missing(x_loc)) {
+        lines(x_loc, as.numeric(truth_mat[v + 1, ]), col = "red", lwd = 2)
+      }
+      box()
+
+      # titles: smaller to save vertical space
+      nm <- method_names[as.character(m)]
+      if (identical(nm, "A2D2E")) {
+        title(main = paste("A2D2E , Variable", v), family = "mono", cex.main = title_cex)
+      } else {
+        title(main = paste(nm, ", Variable", v), cex.main = title_cex)
+      }
+    }
+  }
+
+  mtext("Location", side = 1, outer = TRUE, line = 1, cex = 1.2)
+  mtext("Estimated Functional Value", side = 2, outer = TRUE, line = 1, cex = 1.2)
+}
+```
+
+
+
+```{r}
+plot_main_effect_separate <- function(
+  mat, truth_mat, x_loc, fix_ylim = TRUE,
+  out_dir = NULL, file_prefix = "maineffect",
+  device = c("png", "pdf"), width = 1200, height = 1200, res = 150
+) {
+  stopifnot(is.matrix(mat))
+  p <- ncol(mat)
+  method_col <- p - 2
+  var_col    <- p - 1
+
+  # infer grid length
+  x_count <- (p - 3) / 2
+  if (x_count != round(x_count) || x_count < 1) stop("Cannot infer x_count.")
+  x_count <- as.integer(x_count)
+
+  # method names
+  method_names <- c("1" = "PD", "2" = "ALE", "3" = "A2D2E")
+
+  methods   <- sort(unique(mat[, method_col]))
+  variables <- sort(unique(mat[, var_col]))
+
+  # whether a truth curve is provided
+  has_truth <- !missing(truth_mat) && !missing(x_loc)
+
+  # optional: global y-limits across everything
+  if (fix_ylim) {
+    y_all <- as.numeric(mat[, (x_count + 1):(2 * x_count)])
+    ylim_global <- range(y_all, na.rm = TRUE)
+    if (has_truth) ylim_global <- range(ylim_global, truth_mat, na.rm = TRUE)
+  }
+
+  # file saving?
+  save_files <- !is.null(out_dir)
+  if (save_files) {
+    if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+    device <- match.arg(device)
+  }
+
+  # helper that draws a single panel
+  draw_panel <- function(sub, v, m, ylim_use, truth_mat, x_loc, has_truth) {
+    x_all <- as.numeric(sub[1, 1:x_count])
+
+    if (!save_files) {
+      dev.new(width = 8, height = 6)
+    } else {
+      mname <- method_names[as.character(m)]
+      fname <- sprintf("%s_v%d_%s.%s", file_prefix, v, mname, device)
+      fpath <- file.path(out_dir, fname)
+      if (device == "png") {
+        png(fpath, width = width, height = height, res = res)
+      } else {
+        pdf(fpath, width = width/150, height = height/150)
+      }
+    }
+
+    op <- par(no.readonly = TRUE); on.exit(par(op), add = TRUE)
+    par(mar = c(4.5, 5.0, 4.0, 2.0), cex.axis = 1.1)
+    plot(x_all,
+         as.numeric(sub[1, (x_count+1):(2*x_count)]),
+         type = "l", col = "black", lwd = 2,
+         xlab = "Location", ylab = "Estimated Functional Value",
+         xlim = range(x_all, na.rm = TRUE),
+         ylim = ylim_use)
+    abline(h = 0, col = "grey70")
+
+    if (nrow(sub) > 1) {
+      for (i in 2:nrow(sub)) {
+        lines(x_all, as.numeric(sub[i, (x_count+1):(2*x_count)]), col = "black", lwd = 1)
+      }
+    }
+    if (has_truth) {
+      lines(x_loc, as.numeric(truth_mat[v + 1, ]), col = "red", lwd = 2)
+    }
+
+    method_name <- method_names[as.character(m)]
+    title(main = sprintf("%s, Variable %d", method_name, v), cex.main = 1.6)
+    box()
+
+    if (save_files) dev.off()
+    if (save_files) return(fpath) else return(invisible(NULL))
+  }
+
+  out_paths <- character(0)
+
+  for (v in variables) {
+    for (m in methods) {
+      sub <- mat[mat[, method_col] == m & mat[, var_col] == v, , drop = FALSE]
+      if (nrow(sub) == 0) next
+
+      # y-limits per figure
+      if (fix_ylim) {
+        ylim_use <- ylim_global
+      } else {
+        y_min <- +Inf; y_max <- -Inf
+        for (i in 1:nrow(sub)) {
+          yi <- as.numeric(sub[i, (x_count+1):(2*x_count)])
+          y_min <- min(y_min, yi, na.rm = TRUE)
+          y_max <- max(y_max, yi, na.rm = TRUE)
+        }
+        if (has_truth) {
+          y_truth <- as.numeric(truth_mat[v + 1, ])
+          y_min <- min(y_min, y_truth, na.rm = TRUE)
+          y_max <- max(y_max, y_truth, na.rm = TRUE)
+        }
+        ylim_use <- c(y_min, y_max)
+      }
+
+      res_path <- draw_panel(sub, v, m, ylim_use, truth_mat, x_loc, has_truth)
+      if (save_files && !is.null(res_path)) out_paths <- c(out_paths, res_path)
+    }
+  }
+
+  if (save_files) invisible(out_paths) else invisible(NULL)
+}
+
+```
+
+
+# summarizing results
+```{r}
+# Compute mean and 95% CI (t-interval) for a numeric vector
+mean_ci <- function(x, conf = 0.95, na.rm = TRUE, log_scale = T) {
+  x <- if (na.rm) x[!is.na(x)] else x
+  n <- length(x)
+  stopifnot(n > 1)
+  
+  if (log_scale) {
+    x <- log(x)
+  }
+  
+  m  <- mean(x)
+  se <- stats::sd(x) / sqrt(n)
+  h  <- stats::qt((1 + conf)/2, df = n - 1) * se
+  ci <- c(mean = m, half_width = h, ci_lower = m - h, ci_upper = m + h, n = n)
+  
+  if (log_scale) {
+    # back-transform to original scale
+    ci["mean"]       <- exp(ci["mean"])
+    ci["half_width"] <- NA  # not directly interpretable after exp
+    ci["ci_lower"]   <- exp(ci["ci_lower"])
+    ci["ci_upper"]   <- exp(ci["ci_upper"])
+  }
+  
+  return(ci)
+}
+
+# Summarize for the three vectors inside your R object
+summarize_ci <- function(obj,
+                         keys = c("ORMSE_PD", "ORMSE_ALE", "ORMSE_A2D2E"),
+                         conf = 0.95,
+                         log_scale = T) {
+  missing <- setdiff(keys, names(obj))
+  if (length(missing)) stop("Missing in object: ", paste(missing, collapse = ", "))
+  
+  res <- lapply(keys, function(k) {
+    vals <- obj[[k]]
+    if (!is.numeric(vals)) stop(k, " is not numeric.")
+    out <- mean_ci(vals, conf = conf, log_scale = log_scale)
+    data.frame(
+      Metric = k,
+      n = out["n"],
+      Mean = out["mean"],
+      CI_HalfWidth = out["half_width"],
+      CI_Lower = out["ci_lower"],
+      CI_Upper = out["ci_upper"],
+      row.names = NULL,
+      check.names = FALSE
+    )
+  })
+  do.call(rbind, res)
+}
+
+```
+
+# example usage
+```{r}
+# define the branin function and the associated truth
+branin <- function(x) {
+  # x can be a numeric vector of length 2 or a matrix/data.frame with 2 columns
+  if (is.vector(x)) {
+    x1 <- x[1]
+    x2 <- x[2]
+  } else {
+    x1 <- x[, 1]
+    x2 <- x[, 2]
+  }
+  
+  a <- 1
+  b <- 5.1 / (4 * pi^2)
+  c <- 5 / pi
+  r <- 6
+  s <- 10
+  t <- 1 / (8 * pi)
+  
+  (x2 - b * x1^2 + c * x1 - r)^2 + s * (1 - t) * cos(x1) + s
+}
+
+truth_brain <- read.table("/vbranin.txt", header = FALSE, sep = "\t")
+
+# experiment 
+result = main_effect_exp(f = simple, md = "NN", dep = "lowdep", dim = 2, v = truth_brain, n_train = 250, n_rep = 10, grid_len = 40, sp=0.001)
+summarize_ci(result, log_scale = F)
+
+plot_main_effect(result$result_mat,truth_brain,x_loc=truth_brain[1,])
+plot_main_effect_separate(result$result_mat, truth_brain, x_loc = truth_brain[1,], fix_ylim = T)
+```
+
+
+
+
+
+
