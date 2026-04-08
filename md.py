@@ -242,43 +242,34 @@ def get_gp_gradient(gp, scaler, y_std, X, d):
     # ── Re-scale from normalised y back to original y ─────────────────────────
     return dmu_dx_d * y_std
 
+def get_gradient(f_hat, X, d, eps=1e-4):
+    X = np.atleast_2d(X)
+    X_hi = X.copy(); X_hi[:, d] += eps
+    X_lo = X.copy(); X_lo[:, d] -= eps
+    return (f_hat(X_hi) - f_hat(X_lo)) / (2.0 * eps)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Convenience wrapper
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def fit_all(X, y, verbose=False):
-    """
-    Fit all four models and return a dict of (f_hat, grad_fn) pairs.
-
-    grad_fn(X, d) -> array (N,) is the gradient of f_hat w.r.t. x_d,
-    suitable for passing directly to dale_curve as grad_fn.
-
-    Returns
-    -------
-    models : dict with keys "knn", "nn", "rf", "gp"
-        Each value is a dict:
-            "f_hat"   : callable (n, D) -> (n,)
-            "grad_fn" : callable (X: array, d: int) -> array (N,)
-    """
     gp, f_hat_gp, scaler, y_std = fit_gp(X, y, verbose=verbose)
-    nn_pipe, f_hat_nn            = fit_nn(X, y, verbose=verbose)
+    nn_pipe, f_hat_nn = fit_nn(X, y, verbose=verbose)
+    f_hat_knn = fit_knn(X, y, verbose=verbose)
+    f_hat_rf  = fit_rf(X, y, verbose=verbose)
 
     return {
         "knn": {
-            "f_hat":   fit_knn(X, y, verbose=verbose),
-            "grad_fn": lambda X_, d, _f=None: get_gradient(_f, X_, d, eps=1e-4),
+            "f_hat": f_hat_knn,
+            "grad_fn_builder": lambda d: (lambda X_: get_gradient(f_hat_knn, X_, d, eps=1e-4)),
         },
         "nn": {
-            "f_hat":   f_hat_nn,
-            "grad_fn": lambda X_, d, _p=nn_pipe: get_nn_gradient(_p, X_, d),
+            "f_hat": f_hat_nn,
+            "grad_fn_builder": lambda d: (lambda X_: get_nn_gradient(nn_pipe, X_, d)),
         },
         "rf": {
-            "f_hat":   fit_rf(X, y, verbose=verbose),
-            "grad_fn": lambda X_, d, _f=None: get_gradient(_f, X_, d, eps=1e-2),
+            "f_hat": f_hat_rf,
+            "grad_fn_builder": lambda d: (lambda X_: get_gradient(f_hat_rf, X_, d, eps=1e-2)),
         },
         "gp": {
-            "f_hat":   f_hat_gp,
-            "grad_fn": lambda X_, d: get_gp_gradient(gp, scaler, y_std, X_, d),
+            "f_hat": f_hat_gp,
+            "grad_fn_builder": lambda d: (lambda X_: get_gp_gradient(gp, scaler, y_std, X_, d)),
         },
     }
