@@ -8,7 +8,6 @@ Reproduces **Appendix D.2** from the paper: main-effect estimation on ten non-ad
 |------|---------|
 | `A2D2E_main.Rmd` | Main experiment notebook — knit in RStudio or run chunk by chunk |
 | `A2D2E_main_function.R` | R implementation of the A2D2E estimator |
-| `compute_truth.R` | Recompute ground-truth main effects via numerical integration |
 | `real_data.R` | Appendix D.3: real data analysis |
 | `ground_truth/` | Pre-computed ground-truth `.txt` files (one per benchmark) |
 
@@ -44,9 +43,4 @@ Open `A2D2E_main.Rmd` in RStudio and knit the document, **or** source it chunk b
 
 ## Ground truth
 
-Ground-truth main effects are pre-computed via numerical integration and stored in `ground_truth/`. To recompute them from scratch, run `compute_truth.R` from the `experiments/nonadditive/` directory:
-
-```bash
-cd experiments/nonadditive
-Rscript compute_truth.R
-```
+Ground-truth main effects are pre-computed via numerical integration and stored in `ground_truth/`. These files are loaded directly by `A2D2E_main.Rmd` and do not need to be regenerated.

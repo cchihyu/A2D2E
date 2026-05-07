@@ -21,10 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from benchmarks import ENVS, sample, true_effect_on_grid
 from algorithms import pd_curve, m_curve, ale_curve, a2d2e_curve, dale_curve
-from models import (
-    load_params, fit_knn, fit_nn, fit_rf, fit_gp,
-    get_gradient, get_nn_gradient, get_gp_gradient,
-)
+from models import load_params, fit_knn, get_gradient
 
 
 def mse(a, b):
@@ -41,7 +38,7 @@ def parse_args():
     parser.add_argument("--method",     type=str,   required=True,
                         choices=["pd", "m", "ale", "a2d2e", "dale"])
     parser.add_argument("--model",      type=str,   required=True,
-                        choices=["knn", "nn", "rf", "gp"])
+                        choices=["knn"])
     parser.add_argument("--dependence", type=str,   default="independent",
                         choices=["independent", "low", "high", "veryhigh"])
     parser.add_argument("--n-train",    type=int,   required=True)
@@ -62,25 +59,12 @@ def parse_args():
 def fit_model(model_name, X, y, params, verbose=False):
     if model_name == "knn":
         return None, fit_knn(X, y, params=params, verbose=verbose)
-    if model_name == "nn":
-        pipe, f_hat = fit_nn(X, y, params=params, verbose=verbose)
-        return pipe, f_hat
-    if model_name == "rf":
-        return None, fit_rf(X, y, params=params, verbose=verbose)
-    if model_name == "gp":
-        gp, f_hat, scaler, y_std = fit_gp(X, y, params=params, verbose=verbose)
-        return (gp, scaler, y_std), f_hat
     raise ValueError(model_name)
 
 
-def build_grad_fn(method, model_name, fitted, f_hat, d, eps):
+def build_grad_fn(method, f_hat, d, eps):
     if method != "dale":
         return None
-    if model_name == "nn":
-        return lambda Xq: get_nn_gradient(fitted, Xq, d)
-    if model_name == "gp":
-        gp, scaler, y_std = fitted
-        return lambda Xq: get_gp_gradient(gp, scaler, y_std, Xq, d)
     return lambda Xq: get_gradient(f_hat, Xq, d, eps=eps)
 
 
@@ -135,14 +119,14 @@ def main():
         X, y = sample(env=env, n=args.n_train, dependence=args.dependence,
                       noise_frac=args.noise_frac, seed=rep_seed)
 
-        fitted, f_hat = fit_model(args.model, X, y, params, verbose=args.verbose)
+        _, f_hat = fit_model(args.model, X, y, params, verbose=args.verbose)
         train_rmse = rmse(f_hat(X), y)
 
         per_dim = {}
         rmse_per_dim = []
 
         for d in range(D):
-            grad_fn = build_grad_fn(args.method, args.model, fitted, f_hat, d, args.eps)
+            grad_fn = build_grad_fn(args.method, f_hat, d, args.eps)
 
             grid, est_effect = run_method(
                 method=args.method, f_hat=f_hat, X=X, d=d,

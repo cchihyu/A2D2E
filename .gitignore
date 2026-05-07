@@ -4,11 +4,8 @@ __pycache__/
 .DS_Store
 
 # Result directories
-results_new/
-results_nonadditive/
-results_spike/
-results_gp/
 results/
+results_gp_sensitivity/
 logs/
 
 # Generated tables

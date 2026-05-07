@@ -97,8 +97,7 @@ Open `experiments/nonadditive/A2D2E_main.Rmd` in RStudio and knit, or run chunk 
 
 Required R packages: `ALEPlot`, `MASS`, `nnet`, `DiceKriging`, `e1071`, `randomForest`, `cubature`, `gbm3`
 
-Ground truth files are pre-computed in `experiments/nonadditive/ground_truth/`.
-To recompute them, run `compute_truth.R` from the `experiments/nonadditive/` directory.
+Ground truth files are pre-computed in `experiments/nonadditive/ground_truth/` and are loaded directly by the notebook.
 
 ## Benchmark functions
 
