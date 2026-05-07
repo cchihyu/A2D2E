@@ -8,8 +8,9 @@ Reproduces **Appendix D.2** from the paper: main-effect estimation on ten non-ad
 |------|---------|
 | `A2D2E_main.Rmd` | Main experiment notebook — knit in RStudio or run chunk by chunk |
 | `A2D2E_main_function.R` | R implementation of the A2D2E estimator |
+| `compute_truth.R` | Compute ground-truth main effects via numerical integration |
 | `real_data.R` | Appendix D.3: real data analysis |
-| `ground_truth/` | Pre-computed ground-truth `.txt` files (one per benchmark) |
+| `ground_truth/` | Generated ground-truth files (created by `compute_truth.R`, not tracked in git) |
 
 ## Requirements
 
@@ -24,7 +25,18 @@ install.packages(c("ALEPlot", "MASS", "nnet", "DiceKriging",
 
 ## Running
 
-Open `A2D2E_main.Rmd` in RStudio and knit the document, **or** source it chunk by chunk. Set the working directory to `experiments/nonadditive/` before running so that relative paths resolve correctly.
+**Step 1 — Generate ground truth** (run once from `experiments/nonadditive/`):
+
+```bash
+cd experiments/nonadditive
+Rscript compute_truth.R
+```
+
+This writes `ground_truth/*.txt` files via numerical integration.
+
+**Step 2 — Run the main experiment:**
+
+Open `A2D2E_main.Rmd` in RStudio and knit, or source it chunk by chunk. The working directory must be `experiments/nonadditive/` so that relative paths resolve correctly.
 
 ## Benchmark functions
 
@@ -40,7 +52,3 @@ Open `A2D2E_main.Rmd` in RStudio and knit the document, **or** source it chunk b
 | fried | 5 | Friedman function |
 | detpep108d | 8 | Det-pep function |
 | f_norm | 8 | Borehole function |
-
-## Ground truth
-
-Ground-truth main effects are pre-computed via numerical integration and stored in `ground_truth/`. These files are loaded directly by `A2D2E_main.Rmd` and do not need to be regenerated.

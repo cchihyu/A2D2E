@@ -93,11 +93,16 @@ python experiments/wall_clock/run.py --outfile complexity.tex
 
 ### Appendix D.2 (non-additive benchmarks, R)
 
-Open `experiments/nonadditive/A2D2E_main.Rmd` in RStudio and knit, or run chunk by chunk.
+First generate the ground-truth main effects (numerical integration, run once):
+
+```bash
+cd experiments/nonadditive
+Rscript compute_truth.R
+```
+
+Then open `A2D2E_main.Rmd` in RStudio and knit, or run chunk by chunk.
 
 Required R packages: `ALEPlot`, `MASS`, `nnet`, `DiceKriging`, `e1071`, `randomForest`, `cubature`, `gbm3`
-
-Ground truth files are pre-computed in `experiments/nonadditive/ground_truth/` and are loaded directly by the notebook.
 
 ## Benchmark functions
 

@@ -8,6 +8,9 @@ results/
 results_gp_sensitivity/
 logs/
 
+# Generated ground truth files
+experiments/nonadditive/ground_truth/
+
 # Generated tables
 *.tex
 *.pdf
