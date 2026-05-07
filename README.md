@@ -28,10 +28,6 @@ a2d2e/
 │       ├── real_data.R               # Appendix D.3: real data analysis
 │       └── ground_truth/             # Pre-computed ground truth .txt files
 │
-├── hpc/
-│   ├── run.pbs                       # PBS job array for Table 2 (420 jobs)
-│   └── submit_all.sh                 # Submit HPC jobs
-│
 ├── requirements.txt
 └── pyrightconfig.json
 ```
