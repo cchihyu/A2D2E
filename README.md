@@ -59,12 +59,6 @@ python experiments/main_comparison/summarize.py \
     --results-dir results --outfile table2.tex
 ```
 
-**On HPC** (Imperial CX3, PBS):
-
-```bash
-bash hpc/submit_all.sh
-```
-
 ### Figure 3 (GPR length-scale sensitivity)
 
 ```bash
