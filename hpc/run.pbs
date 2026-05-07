@@ -64,7 +64,7 @@ echo "N_TRAIN         : $N_TRAIN"
 echo "node            : $(hostname)"
 echo "=============================="
 
-python experiments/table2/run.py \
+python experiments/main_comparison/run.py \
     --env        "$ENV"    \
     --method     "$METHOD" \
     --model      "$MODEL"  \
@@ -76,8 +76,8 @@ python experiments/table2/run.py \
     --delta      $DELTA    \
     --noise-frac $NOISE    \
     --seed       $SEED     \
-    --param-dir  param     \
-    --outdir     results_new   \
+    --param-dir  model_params     \
+    --outdir     results   \
     --save-curves          \
     --verbose
 

@@ -1,11 +1,11 @@
 """
-Table 2 experiment runner.
+Main ORMSE comparison experiment (Table 2).
 
-python experiments/table2/run.py \\
+python experiments/main_comparison/run.py \\
     --env f0 --method a2d2e --model knn \\
     --dependence independent --n-train 300 --n-reps 100 \\
     --noise-frac 0.1 --K 40 --delta 0.025 \\
-    --param-dir param --outdir results_new --verbose
+    --param-dir model_params --outdir results --verbose
 """
 
 import argparse
@@ -19,9 +19,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from env import ENVS, sample, true_effect_on_grid
-from alg import pd_curve, m_curve, ale_curve, a2d2e_curve, dale_curve
-from md import (
+from benchmarks import ENVS, sample, true_effect_on_grid
+from algorithms import pd_curve, m_curve, ale_curve, a2d2e_curve, dale_curve
+from models import (
     load_params, fit_knn, fit_nn, fit_rf, fit_gp,
     get_gradient, get_nn_gradient, get_gp_gradient,
 )
@@ -52,8 +52,8 @@ def parse_args():
     parser.add_argument("--delta",      type=float, default=0.025)
     parser.add_argument("--eps",        type=float, default=1e-4)
     parser.add_argument("--seed",       type=int,   default=0)
-    parser.add_argument("--param-dir",  type=str,   default="param")
-    parser.add_argument("--outdir",     type=str,   default="results_new")
+    parser.add_argument("--param-dir",  type=str,   default="model_params")
+    parser.add_argument("--outdir",     type=str,   default="results")
     parser.add_argument("--save-curves", action="store_true")
     parser.add_argument("--verbose",    action="store_true")
     return parser.parse_args()

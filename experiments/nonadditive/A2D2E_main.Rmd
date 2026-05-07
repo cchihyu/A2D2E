@@ -577,7 +577,7 @@ branin <- function(x) {
   (x2 - b * x1^2 + c * x1 - r)^2 + s * (1 - t) * cos(x1) + s
 }
 
-truth_brain <- read.table("Ture_main_effect/vbranin.txt", header = FALSE, sep = "\t")
+truth_brain <- read.table("ground_truth/vbranin.txt", header = FALSE, sep = "\t")
 
 # experiment 
 result = main_effect_exp(f = simple, md = "NN", dep = "lowdep", dim = 2, v = truth_brain, n_train = 250, n_rep = 10, grid_len = 40, sp=0.001)

@@ -3,7 +3,7 @@ Figure 3: GPR length-scale sensitivity study.
 
 Self-contained script (no dependency on src/).
 
-python experiments/figure3/run.py --ls_idx 0 --rep 0 --out_dir results_spike
+python experiments/figure3/run.py --ls_idx 0 --rep 0 --out_dir results_gp_sensitivity
 
 Each job: one (ls, rep) pair, all 5 methods evaluated.
 Results saved as results_spike/ls{ii}_rep{rrr}.npz
@@ -175,7 +175,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ls_idx",  type=int, required=True)
     parser.add_argument("--rep",     type=int, required=True)
-    parser.add_argument("--out_dir", type=str, default="results_spike")
+    parser.add_argument("--out_dir", type=str, default="results_gp_sensitivity")
     args = parser.parse_args()
 
     ls = LS_VALUES[args.ls_idx]

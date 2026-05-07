@@ -72,7 +72,7 @@ vfranke = rbind(x_loc, truth_franke1,truth_franke2)
 
 # Write as plain text (tab separated)
 write.table(vfranke,
-            file = "Ture_main_effect/vfranke.txt",
+            file = "ground_truth/vfranke.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)
@@ -93,7 +93,7 @@ simple <- function(xx)
 
 # Write as plain text (tab separated)
 write.table(vsimple1,
-            file = "Ture_main_effect/vsimple1.txt",
+            file = "ground_truth/vsimple1.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)
@@ -139,7 +139,7 @@ grlee09 <- function(xx)
 }
 
 write.table(vgrlee09,
-            file = "Ture_main_effect/vgrlee.txt",
+            file = "ground_truth/vgrlee.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)
@@ -214,7 +214,7 @@ v2 = v2-mean(v2)
 vbraninsc = rbind(x_loc, v1,v2)
 
 write.table(vbraninsc,
-            file = "Ture_main_effect/vbranin.txt",
+            file = "ground_truth/vbranin.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)
@@ -280,7 +280,7 @@ v4 <- v4 - mean(v4)
 # Combine all results
 vsimple2 <- rbind(x_loc, v1, v2, v3, v4)
 write.table(vsimple2,
-            file = "Ture_main_effect/vsimple2.txt",
+            file = "ground_truth/vsimple2.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)
@@ -351,7 +351,7 @@ for (j in 1:d) {
 vlevy <- rbind(x_loc, do.call(rbind, v_list))
 rownames(vlevy) <- c("x_loc", paste0("v", 1:d))
 write.table(vlevy,
-            file = "Ture_main_effect/vlevy.txt",
+            file = "ground_truth/vlevy.txt",
             sep = "\t",
             row.names = FALSE,
             col.names = FALSE)

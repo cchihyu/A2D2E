@@ -1,7 +1,7 @@
 """
 Generate LaTeX Table 2.
 
-python experiments/table2/summary.py --results-dir results_new --outfile table2.tex
+python experiments/main_comparison/summarize.py --results-dir results --outfile table2.tex
 """
 
 import argparse
@@ -30,7 +30,7 @@ DEP_LABEL = {
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results-dir", type=str, default="results_new")
+    parser.add_argument("--results-dir", type=str, default="results")
     parser.add_argument("--outfile",     type=str, default="table2.tex")
     parser.add_argument("--digits",      type=int, default=4)
     return parser.parse_args()

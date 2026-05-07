@@ -6,34 +6,34 @@ Code for the paper *"Accumulated Aggregated D-Optimal Designs for Estimating Mai
 
 ```
 a2d2e/
-├── src/                         # Shared library (Python)
-│   ├── alg.py                   # PD, M, ALE, DALE, A2D2E algorithms
-│   ├── env.py                   # Additive benchmark functions f0–f6
-│   └── md.py                    # Model fitting (KNN, NN, RF, GP) + gradient utilities
+├── src/                              # Shared Python library
+│   ├── algorithms.py                 # PD, M, ALE, DALE, A2D2E curve estimators
+│   ├── benchmarks.py                 # Additive benchmark functions f0–f6 + sampling
+│   └── models.py                     # Model fitting (KNN, NN, RF, GP) + gradients
 │
-├── param/                       # Pre-tuned hyperparameters for f0–f6 × {knn,nn,rf,gp}
+├── model_params/                     # Pre-tuned hyperparameters for f0–f6 × {knn,nn,rf,gp}
 │
 ├── experiments/
-│   ├── table2/
-│   │   ├── run.py               # Table 2 experiment runner (one job per config)
-│   │   └── summary.py           # Aggregate results → LaTeX table
-│   ├── figure3/
-│   │   └── run.py               # Figure 3: GPR length-scale sensitivity (self-contained)
-│   ├── appendix_c/
-│   │   └── run.py               # Appendix C: wall-clock complexity tables (self-contained)
-│   └── appendix_d2/             # Appendix D.2: non-additive experiments (R)
-│       ├── A2D2E_main.Rmd       # Main experiment notebook (run in RStudio)
-│       ├── A2D2E_main_function.R# A2D2E R implementation
-│       ├── compute_truth.R      # Ground truth via numerical integration
-│       ├── real_data.R          # Appendix D.3: real data analysis
-│       └── Ture_main_effect/    # Pre-computed ground truth .txt files
+│   ├── main_comparison/              # Table 2: ORMSE comparison across methods
+│   │   ├── run.py                    # Experiment runner (one job per configuration)
+│   │   └── summarize.py             # Aggregate results → LaTeX table
+│   ├── gp_sensitivity/               # Figure 3: GPR length-scale sensitivity (self-contained)
+│   │   └── run.py
+│   ├── wall_clock/                   # Appendix C: wall-clock complexity (self-contained)
+│   │   └── run.py
+│   └── nonadditive/                  # Appendix D.2: non-additive benchmarks (R)
+│       ├── A2D2E_main.Rmd            # Main experiment notebook
+│       ├── A2D2E_main_function.R     # A2D2E R implementation
+│       ├── compute_truth.R           # Ground truth via numerical integration
+│       ├── real_data.R               # Appendix D.3: real data analysis
+│       └── ground_truth/             # Pre-computed ground truth .txt files
 │
 ├── hpc/
-│   ├── run.pbs                  # PBS job array for Table 2 (420 jobs)
-│   └── submit_all.sh            # Submit HPC jobs
+│   ├── run.pbs                       # PBS job array for Table 2 (420 jobs)
+│   └── submit_all.sh                 # Submit HPC jobs
 │
 ├── requirements.txt
-└── .gitignore
+└── pyrightconfig.json
 ```
 
 ## Installation
@@ -44,23 +44,23 @@ pip install -r requirements.txt
 
 ## Running experiments
 
-### Table 2 (main results)
+### Table 2 (main comparison)
 
 **Single run** (one env/method/model/dependence/noise combination):
 
 ```bash
-python experiments/table2/run.py \
+python experiments/main_comparison/run.py \
     --env f0 --method a2d2e --model knn \
     --dependence independent --n-train 300 --n-reps 100 \
     --noise-frac 0.1 --K 40 --delta 0.025 \
-    --param-dir param --outdir results_new --verbose
+    --param-dir model_params --outdir results --verbose
 ```
 
 **Generate LaTeX table** after all runs complete:
 
 ```bash
-python experiments/table2/summary.py \
-    --results-dir results_new --outfile table2.tex
+python experiments/main_comparison/summarize.py \
+    --results-dir results --outfile table2.tex
 ```
 
 **On HPC** (Imperial CX3, PBS):
@@ -73,12 +73,12 @@ bash hpc/submit_all.sh
 
 ```bash
 # Run one (ls_idx, rep) pair
-python experiments/figure3/run.py --ls_idx 0 --rep 0 --out_dir results_spike
+python experiments/gp_sensitivity/run.py --ls_idx 0 --rep 0 --out_dir results_gp_sensitivity
 
 # Run all 15 length scales × 100 reps
 for ls_idx in $(seq 0 14); do
   for rep in $(seq 0 99); do
-    python experiments/figure3/run.py --ls_idx $ls_idx --rep $rep --out_dir results_spike
+    python experiments/gp_sensitivity/run.py --ls_idx $ls_idx --rep $rep --out_dir results_gp_sensitivity
   done
 done
 ```
@@ -88,17 +88,17 @@ done
 Self-contained; no pre-tuned params needed:
 
 ```bash
-python experiments/appendix_c/run.py --outfile complexity.tex
+python experiments/wall_clock/run.py --outfile complexity.tex
 ```
 
 ### Appendix D.2 (non-additive benchmarks, R)
 
-Open `experiments/appendix_d2/A2D2E_main.Rmd` in RStudio and knit, or run chunk by chunk.
+Open `experiments/nonadditive/A2D2E_main.Rmd` in RStudio and knit, or run chunk by chunk.
 
 Required R packages: `ALEPlot`, `MASS`, `nnet`, `DiceKriging`, `e1071`, `randomForest`, `cubature`, `gbm3`
 
-Ground truth files are pre-computed in `experiments/appendix_d2/Ture_main_effect/`.  
-To recompute them, run `compute_truth.R` from the `experiments/appendix_d2/` directory.
+Ground truth files are pre-computed in `experiments/nonadditive/ground_truth/`.
+To recompute them, run `compute_truth.R` from the `experiments/nonadditive/` directory.
 
 ## Benchmark functions
 
@@ -116,18 +116,18 @@ To recompute them, run `compute_truth.R` from the `experiments/appendix_d2/` dir
 
 ### Non-additive (Appendix D.2)
 
-| Function      | D  | Description |
-|---------------|----|-------------|
-| simple        | 2  | x₁² + x₂ |
-| simple2       | 4  | x₁x₂ − x₂x₃ + x₄x₁ |
-| franke2d      | 2  | Franke function |
-| braninsc      | 2  | Scaled Branin |
-| grlee09       | 6  | exp(sin(·)) + x₂x₃ + x₄ |
-| levy          | 6  | Levy function |
-| ackley        | 6  | Ackley function |
-| fried         | 5  | Friedman function |
-| detpep108d    | 8  | Det-pep function |
-| f_norm        | 8  | Borehole function |
+| Function   | D | Description |
+|------------|---|-------------|
+| simple     | 2 | x₁² + x₂ |
+| simple2    | 4 | x₁x₂ − x₂x₃ + x₄x₁ |
+| franke2d   | 2 | Franke function |
+| braninsc   | 2 | Scaled Branin |
+| grlee09    | 6 | exp(sin(·)) + x₂x₃ + x₄ |
+| levy       | 6 | Levy function |
+| ackley     | 6 | Ackley function |
+| fried      | 5 | Friedman function |
+| detpep108d | 8 | Det-pep function |
+| f_norm     | 8 | Borehole function |
 
 ## Competing methods
 
