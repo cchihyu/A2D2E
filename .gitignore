@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.DS_Store
+
+# Result directories
+results_new/
+results_nonadditive/
+results_spike/
+results_gp/
+results/
+logs/
+
+# Generated tables
+*.tex
+*.pdf
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual envs
+.venv/
+venv/
+env/
