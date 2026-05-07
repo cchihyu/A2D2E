@@ -6,14 +6,12 @@ Code for the paper *"Accumulated Aggregated D-Optimal Designs for Estimating Mai
 
 ```
 a2d2e/
-├── src/                         # Shared library
+├── src/                         # Shared library (Python)
 │   ├── alg.py                   # PD, M, ALE, DALE, A2D2E algorithms
 │   ├── env.py                   # Additive benchmark functions f0–f6
-│   ├── env_nonadditive.py       # Non-additive functions g1–g7 with analytical ALE
 │   └── md.py                    # Model fitting (KNN, NN, RF, GP) + gradient utilities
 │
 ├── param/                       # Pre-tuned hyperparameters for f0–f6 × {knn,nn,rf,gp}
-├── param_nonadditive/           # Pre-tuned hyperparameters for g1–g7 × {knn,nn,rf,gp}
 │
 ├── experiments/
 │   ├── table2/
@@ -23,14 +21,16 @@ a2d2e/
 │   │   └── run.py               # Figure 3: GPR length-scale sensitivity (self-contained)
 │   ├── appendix_c/
 │   │   └── run.py               # Appendix C: wall-clock complexity tables (self-contained)
-│   └── appendix_d2/
-│       ├── run.py               # Appendix D.2: non-additive benchmark runner
-│       └── summary.py           # Non-additive LaTeX tables
+│   └── appendix_d2/             # Appendix D.2: non-additive experiments (R)
+│       ├── A2D2E_main.Rmd       # Main experiment notebook (run in RStudio)
+│       ├── A2D2E_main_function.R# A2D2E R implementation
+│       ├── compute_truth.R      # Ground truth via numerical integration
+│       ├── real_data.R          # Appendix D.3: real data analysis
+│       └── Ture_main_effect/    # Pre-computed ground truth .txt files
 │
 ├── hpc/
 │   ├── run.pbs                  # PBS job array for Table 2 (420 jobs)
-│   ├── run_nonadditive.pbs      # PBS job array for Appendix D.2 (280 jobs)
-│   └── submit_all.sh            # Submit all HPC jobs
+│   └── submit_all.sh            # Submit HPC jobs
 │
 ├── requirements.txt
 └── .gitignore
@@ -72,10 +72,10 @@ bash hpc/submit_all.sh
 ### Figure 3 (GPR length-scale sensitivity)
 
 ```bash
-# Run one (ls_idx, rep) pair — e.g. first length scale, rep 0
+# Run one (ls_idx, rep) pair
 python experiments/figure3/run.py --ls_idx 0 --rep 0 --out_dir results_spike
 
-# Run all 15 length scales × 100 reps in a loop
+# Run all 15 length scales × 100 reps
 for ls_idx in $(seq 0 14); do
   for rep in $(seq 0 99); do
     python experiments/figure3/run.py --ls_idx $ls_idx --rep $rep --out_dir results_spike
@@ -91,17 +91,14 @@ Self-contained; no pre-tuned params needed:
 python experiments/appendix_c/run.py --outfile complexity.tex
 ```
 
-### Appendix D.2 (non-additive benchmarks)
+### Appendix D.2 (non-additive benchmarks, R)
 
-```bash
-python experiments/appendix_d2/run.py \
-    --env g1 --method a2d2e_goldilocks --model knn \
-    --rho 0.7 --n-train 200 --n-reps 30 --noise-frac 0.3 \
-    --param-dir param_nonadditive --outdir results_nonadditive --verbose
+Open `experiments/appendix_d2/A2D2E_main.Rmd` in RStudio and knit, or run chunk by chunk.
 
-python experiments/appendix_d2/summary.py \
-    --results-dir results_nonadditive --outfile table_nonadditive.tex
-```
+Required R packages: `ALEPlot`, `MASS`, `nnet`, `DiceKriging`, `e1071`, `randomForest`, `cubature`, `gbm3`
+
+Ground truth files are pre-computed in `experiments/appendix_d2/Ture_main_effect/`.  
+To recompute them, run `compute_truth.R` from the `experiments/appendix_d2/` directory.
 
 ## Benchmark functions
 
@@ -117,17 +114,20 @@ python experiments/appendix_d2/summary.py \
 | f5 | 8  | Multi-scale oscillation |
 | f6 | 10 | Fourier + polynomial + rational |
 
-### Non-additive (Appendix D.2, X ~ N(0, Σ_AR1(ρ)))
+### Non-additive (Appendix D.2)
 
-| ID | D  | Description |
-|----|----|-------------|
-| g1 | 2  | Bilinear: x₁·x₂ |
-| g2 | 4  | Squared sum: (x₁+⋯+x₄)² |
-| g3 | 4  | Exp sum: exp((x₁+⋯+x₄)/4) |
-| g4 | 3  | Ishigami |
-| g5 | 4  | Quadratic form: xᵀAx |
-| g6 | 4  | Cyclic polynomial |
-| g7 | 8  | Detpep |
+| Function      | D  | Description |
+|---------------|----|-------------|
+| simple        | 2  | x₁² + x₂ |
+| simple2       | 4  | x₁x₂ − x₂x₃ + x₄x₁ |
+| franke2d      | 2  | Franke function |
+| braninsc      | 2  | Scaled Branin |
+| grlee09       | 6  | exp(sin(·)) + x₂x₃ + x₄ |
+| levy          | 6  | Levy function |
+| ackley        | 6  | Ackley function |
+| fried         | 5  | Friedman function |
+| detpep108d    | 8  | Det-pep function |
+| f_norm        | 8  | Borehole function |
 
 ## Competing methods
 
@@ -141,4 +141,4 @@ python experiments/appendix_d2/summary.py \
 
 ## Evaluation metric
 
-ORMSE = (1/D) Σ_d RMSE(estimated main effect d, true main effect d), averaged over 100 replications.
+ORMSE = (1/D) Σ_d RMSE(estimated main effect d, true main effect d), averaged over replications.
